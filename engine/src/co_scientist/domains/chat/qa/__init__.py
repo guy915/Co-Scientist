@@ -10,7 +10,6 @@ import co_scientist.domains.chat.qa.manifest as qa_ideas
 import co_scientist.platform.llm.offline_guard as offline_guard
 from co_scientist.core import byok_scope
 from co_scientist.core.config import (
-    CONVERSATIONAL_REASONING_EFFORT,
     THINKING_FLOOR_TIMEOUT_SECONDS,
     settings,
 )
@@ -25,11 +24,6 @@ from co_scientist.domains.chat.repository.messages import NewMessage
 from co_scientist.platform.db import runs
 from co_scientist.platform.llm.attempts.retry import is_credential_rejected
 from co_scientist.platform.llm.llm_scope import budgeted_stream, stream_chunks
-from co_scientist.platform.llm.request.thinking import (
-    deepseek_thinking_kwargs,
-    thinking_off_kwargs,
-    thinking_safe_max_tokens,
-)
 from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
 from co_scientist.platform.llm.tools.transcript import ThinkingTranscript
 from co_scientist.platform.telemetry.diagnostic_events import log_chat_turn
@@ -61,15 +55,11 @@ def _completion_request(
         "messages": messages,
         # Without an explicit budget, thinking can exhaust the provider default
         # and return a clean but empty stream.
-        "max_tokens": thinking_safe_max_tokens(model, _ANSWER_MAX_TOKENS),
+        "max_tokens": _ANSWER_MAX_TOKENS,
         "timeout": _QA_TOTAL_SECONDS,
         "stream": True,
         "api_key": api_key,
-        **(
-            deepseek_thinking_kwargs(model, effort=CONVERSATIONAL_REASONING_EFFORT)
-            if thinking_enabled
-            else thinking_off_kwargs(model)
-        ),
+        "enable_thinking": thinking_enabled,
     }
     if tools:
         request["tools"] = tools

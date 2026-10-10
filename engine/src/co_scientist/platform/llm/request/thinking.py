@@ -10,8 +10,9 @@ from co_scientist.core.constants import (
     THINKING_FLOOR_MAX_TOKENS,
 )
 from co_scientist.core.env_vars import parse_list_env
-from co_scientist.platform.llm.profile import ModelProfile, Thinking, model_profile
-from co_scientist.platform.llm.request.anthropic import output_limit
+from co_scientist.platform.llm.profile import ModelProfile, Thinking, is_free_route, model_profile
+from co_scientist.platform.llm.request.anthropic import haiku_thinking, output_limit
+from co_scientist.platform.llm.request.cache import HAIKU
 from co_scientist.platform.llm.roles import current_call_policy
 
 logger = logging.getLogger(__name__)
@@ -140,6 +141,32 @@ def deepseek_thinking_extra_body(model_name: str, *, enabled: bool = True) -> di
     return _gateway_body(lowered, profile, enabled)
 
 
+# Free routes bill per request, not per token, so they reason at the most the
+# gateway offers; it maps "max" down to each model's top tier. Chat keeps the
+# table's tier so users are not left waiting.
+_GATEWAY_MAX_EFFORT: Final[str] = "max"
+_CONVERSATIONAL_ROLES: Final = frozenset(("chat", "interview"))
+
+
+def wire_effort(model_name: str) -> str:
+    """The one place that turns a reasoning call's role effort into what each
+    provider is sent; whether the call reasons is decided by the role policy.
+    """
+    policy = current_call_policy()
+    if model_name == HAIKU:
+        return "low"
+    profile = model_profile(model_name)
+    if profile.supported_efforts is not None:
+        return policy.azure_effort
+    if profile.thinking is Thinking.NATIVE:
+        return _REASONING_EFFORT
+    if profile.pinned_effort:
+        return profile.pinned_effort
+    if is_free_route(model_name.lower()) and policy.role not in _CONVERSATIONAL_ROLES:
+        return _GATEWAY_MAX_EFFORT
+    return policy.effort
+
+
 def _gateway_body(lowered: str, profile: ModelProfile, enabled: bool) -> dict[str, Any]:
     body: dict[str, Any] = {"provider": _gateway_provider(lowered)}
     if profile.fallbacks:
@@ -152,11 +179,7 @@ def _gateway_body(lowered: str, profile: ModelProfile, enabled: bool) -> dict[st
         return body
     reasoning: dict[str, Any] = {"enabled": enabled}
     if enabled:
-        if lowered == "openrouter/inclusionai/ling-3.1-flash":
-            effort = current_call_policy().effort
-            reasoning["effort"] = "low" if effort == "none" else effort
-        else:
-            reasoning["effort"] = profile.pinned_effort or _REASONING_EFFORT
+        reasoning["effort"] = wire_effort(lowered)
     body["reasoning"] = reasoning
     return body
 
@@ -173,7 +196,7 @@ def reasoning_effort_args(model_name: str, *, enabled: bool = True) -> dict[str,
     tier and reject duplicates.
     """
     if enabled and model_profile(model_name).thinking is Thinking.NATIVE:
-        return {"reasoning_effort": _REASONING_EFFORT}
+        return {"reasoning_effort": wire_effort(model_name)}
     return {}
 
 
@@ -181,8 +204,11 @@ def effective_max_tokens(model_name: str, max_tokens: int, enable_thinking: bool
     """Funding and failure records must share the wire budget, including
     forced reasoning.
     """
-    if model_name == "anthropic/claude-haiku-5-5":
-        return min(max_tokens, output_limit())
+    if model_name == HAIKU:
+        # Adaptive thinking spends this budget before the answer. Haiku keeps the
+        # caller's choice across retries, so the budget follows the policy too.
+        floor = THINKING_FLOOR_MAX_TOKENS if current_call_policy().enable_thinking else 0
+        return min(max(max_tokens, floor), output_limit())
     if not (effective_thinking_enabled(model_name, enable_thinking) and model_reasons(model_name)):
         return max_tokens
     return max(max_tokens, THINKING_FLOOR_MAX_TOKENS)
@@ -191,12 +217,13 @@ def effective_max_tokens(model_name: str, max_tokens: int, enable_thinking: bool
 def _apply_thinking_args(
     completion_args: dict[str, Any], model_name: str, enable_thinking: bool
 ) -> None:
-    """Centralize the reasoning floor so new callers cannot send answer-sized
-    budgets.
+    """Every request takes its reasoning from here, so the role policy decides
+    for every provider and no caller can send an answer-sized budget.
     """
+    enable_thinking = enable_thinking and current_call_policy().enable_thinking
     profile = model_profile(model_name)
     if profile.supported_efforts is not None:
-        effort = current_call_policy().azure_effort if enable_thinking else "none"
+        effort = wire_effort(model_name) if enable_thinking else "none"
         completion_args["reasoning_effort"] = effort
         if effort != "none":
             completion_args["max_tokens"] = max(
@@ -218,7 +245,7 @@ def apply_provider_constraints(completion_args: dict[str, Any], model_name: str)
     provider's wire rules.
     """
     profile = model_profile(model_name)
-    if model_name == "anthropic/claude-haiku-5-5":
+    if model_name == HAIKU:
         # A thinking-off recovery would invalidate the shared cached prefix.
         completion_args.pop("reasoning_effort", None)
         extra = dict(completion_args.get("extra_body") or {})
@@ -235,8 +262,8 @@ def apply_provider_constraints(completion_args: dict[str, Any], model_name: str)
         completion_args["allowed_openai_params"] = list(
             dict.fromkeys([*completion_args.get("allowed_openai_params", []), "thinking"])
         )
-        completion_args["thinking"] = {"type": "adaptive"}
-        completion_args["output_config"] = {"effort": "low"}
+        completion_args["thinking"] = haiku_thinking()
+        completion_args["output_config"] = {"effort": wire_effort(model_name)}
         completion_args["max_tokens"] = min(
             completion_args.pop("max_completion_tokens", completion_args.get("max_tokens", 0)),
             output_limit(),
@@ -284,42 +311,6 @@ def failure_context_text(error: Exception) -> str:
     call_site, sent, asked = context
     named = f"{call_site}, " if call_site else ""
     return f" ({named}max_tokens {sent}, call site asked for {asked})"
-
-
-def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
-    result: dict[str, Any] = deepseek_thinking_extra_body(model_name, enabled=False)
-    return result
-
-
-def deepseek_thinking_kwargs(model_name: str, *, effort: str | None = None) -> dict[str, Any]:
-    extra_body = deepseek_thinking_extra_body(model_name, enabled=True)
-    if not extra_body:
-        return {}
-    kwargs: dict[str, Any] = {
-        "extra_body": extra_body,
-        **reasoning_effort_args(model_name, enabled=True),
-    }
-    if effort is not None and not model_profile(model_name).pinned_effort:
-        if "reasoning_effort" in kwargs:
-            kwargs["reasoning_effort"] = effort
-        reasoning = kwargs["extra_body"].get("reasoning")
-        if isinstance(reasoning, dict) and "effort" in reasoning:
-            reasoning["effort"] = effort
-    return kwargs
-
-
-def thinking_off_kwargs(model_name: str) -> dict[str, Any]:
-    extra_body = deepseek_non_thinking_extra_body(model_name)
-    return {"extra_body": extra_body} if extra_body else {}
-
-
-def thinking_safe_max_tokens(model_name: str, answer_tokens: int) -> int:
-    if model_name == "anthropic/claude-haiku-5-5":
-        # Adaptive thinking spends this budget before the answer. Dispatch
-        # clamps it to the role's output limit under the call's own policy.
-        return max(answer_tokens, THINKING_FLOOR_MAX_TOKENS)
-    result: int = effective_max_tokens(model_name, answer_tokens, True)
-    return result
 
 
 def thinking_safe_timeout(model_name: str, answer_seconds: float) -> float:

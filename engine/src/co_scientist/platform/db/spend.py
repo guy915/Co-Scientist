@@ -119,8 +119,11 @@ def _covers_verified_rates(allowance: AzureAllowance, model: str, rates: str) ->
         verified = json.loads(allowance.rates)
         current = json.loads(rates)
         model_rates = verified["models"][model]
+        # Without short-tier rates every token pays the long rates verified above.
         return Decimal(current["fx"]) >= Decimal(verified["fx"]) and all(
-            Decimal(current[name]) >= Decimal(value) for name, value in model_rates.items()
+            Decimal(current[name]) >= Decimal(value)
+            for name, value in model_rates.items()
+            if name in current or not name.startswith("short_")
         )
     except (KeyError, TypeError, ValueError, InvalidOperation):
         return False

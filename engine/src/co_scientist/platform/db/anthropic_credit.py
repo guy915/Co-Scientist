@@ -12,6 +12,10 @@ class AnthropicCreditUnavailableError(ProviderAdmissionError):
     pass
 
 
+class AnthropicPromptTooLongError(AnthropicCreditUnavailableError):
+    pass
+
+
 @dataclass(frozen=True)
 class CreditReservation:
     cycle_start: float

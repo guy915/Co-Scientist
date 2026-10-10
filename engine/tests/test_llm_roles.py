@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import dataclasses
 from typing import Any
 
 import pytest
 
+from co_scientist.core.constants import MINIMAL_REASONING_MAX_TOKENS
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.llm import (
     CompletionSpec,
@@ -30,15 +32,16 @@ LUNA = "azure/gpt-6-luna-2026-09-22"
 @pytest.mark.parametrize(
     ("role", "effort"),
     [
-        ("evidence_queries", "low"),
-        ("grounding_queries", "low"),
-        ("research_extract", "low"),
-        ("reflection", "medium"),
-        ("generation", "medium"),
-        ("overview_outline", "low"),
+        ("reflection", "max"),
+        ("generation", "max"),
+        ("supervisor", "max"),
+        ("overview_outline", "max"),
+        ("overview_directions", "max"),
+        ("chat", "medium"),
+        ("interview", "medium"),
     ],
 )
-async def test_free_route_receives_role_effort_without_changing_price_cap(
+async def test_free_route_reasons_at_maximum_effort_except_conversation(
     monkeypatch: pytest.MonkeyPatch, role: CallRole, effort: str
 ) -> None:
     captured: list[dict[str, Any]] = []
@@ -61,6 +64,109 @@ async def test_free_route_receives_role_effort_without_changing_price_cap(
         "request": 0.0,
     }
     assert "reasoning_effort" not in captured[0]
+
+
+@pytest.mark.parametrize(
+    ("role", "effort"),
+    [("generation", "medium"), ("ranking", "low"), ("overview_outline", "low"), ("chat", "medium")],
+)
+def test_paid_gateway_route_keeps_the_role_effort(role: CallRole, effort: str) -> None:
+    from co_scientist.platform.llm.request.thinking import deepseek_thinking_extra_body
+
+    with scoped_call_policy(role):
+        body = deepseek_thinking_extra_body("openrouter/z-ai/glm-5.3-flash")
+    assert body["reasoning"] == {"enabled": True, "effort": effort}
+
+
+FREE = "openrouter/inclusionai/ling-3.1-flash"
+PAID = "openrouter/z-ai/glm-5.3-flash"
+NATIVE = "deepseek/deepseek-v4-flash"
+HAIKU = "anthropic/claude-haiku-5-5"
+
+
+def _wire(role: CallRole, model: str, *, enable_thinking: bool = True) -> dict[str, Any]:
+    from co_scientist.platform.llm.request.thinking import (
+        _apply_thinking_args,
+        apply_provider_constraints,
+    )
+
+    args: dict[str, Any] = {"model": model, "max_tokens": 100, "messages": []}
+    with scoped_call_policy(role, enable_thinking=enable_thinking):
+        _apply_thinking_args(args, model, True)
+        apply_provider_constraints(args, model)
+    return args
+
+
+def _reasoning(args: dict[str, Any]) -> object:
+    extra = args.get("extra_body") or {}
+    return (
+        extra.get("reasoning"),
+        extra.get("thinking"),
+        args.get("reasoning_effort"),
+        args.get("thinking"),
+        args.get("output_config"),
+    )
+
+
+# Hosts that cannot switch reasoning off get the smallest cap instead.
+_MINIMAL = {"enabled": True, "max_tokens": MINIMAL_REASONING_MAX_TOKENS}
+
+
+@pytest.mark.parametrize(
+    "role", ["goal_text", "announcement", "evidence_queries", "literature_queries", "research"]
+)
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        (FREE, (_MINIMAL, None, None, None, None)),
+        (PAID, (_MINIMAL, None, None, None, None)),
+        (NATIVE, (None, {"type": "disabled"}, None, None, None)),
+        (LUNA, (None, None, "none", None, None)),
+        (HAIKU, (None, None, None, {"type": "disabled"}, {"effort": "low"})),
+    ],
+)
+def test_no_reasoning_roles_do_not_reason_on_any_provider(
+    role: CallRole, model: str, expected: object
+) -> None:
+    assert _reasoning(_wire(role, model)) == expected
+
+
+@pytest.mark.parametrize("role", ["relevance", "proximity", "research_extract", "claims"])
+@pytest.mark.parametrize(
+    ("model", "expected"),
+    [
+        (FREE, ({"enabled": True, "effort": "max"}, None, None, None, None)),
+        (PAID, ({"enabled": True, "effort": "low"}, None, None, None, None)),
+        (NATIVE, (None, {"type": "enabled"}, "high", None, None)),
+        (LUNA, (None, None, "low", None, None)),
+        (HAIKU, (None, None, None, {"type": "adaptive"}, {"effort": "low"})),
+    ],
+)
+def test_reasoning_roles_reason_on_every_provider(
+    role: CallRole, model: str, expected: object
+) -> None:
+    assert _reasoning(_wire(role, model)) == expected
+
+
+@pytest.mark.parametrize("model", [FREE, PAID, NATIVE, LUNA, HAIKU])
+def test_a_caller_turning_thinking_off_matches_a_no_reasoning_role(model: str) -> None:
+    assert _reasoning(_wire("generation", model, enable_thinking=False)) == _reasoning(
+        _wire("goal_text", model)
+    )
+
+
+def test_gateway_route_that_can_disable_reasoning_turns_it_off_for_titles(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from co_scientist.platform.llm.request import thinking
+
+    profile = model_profile(PAID)
+    monkeypatch.setattr(
+        thinking,
+        "model_profile",
+        lambda _: dataclasses.replace(profile, reasoning_can_disable=True),
+    )
+    assert _wire("goal_text", PAID)["extra_body"]["reasoning"] == {"enabled": False}
 
 
 @pytest.fixture(autouse=True)
@@ -133,9 +239,9 @@ async def test_tool_turn_and_closing_harvest_keep_role_and_effort(
 
 def test_role_effort_env_is_read_per_physical_request(monkeypatch: pytest.MonkeyPatch) -> None:
     with scoped_call_policy("overview_outline"):
-        assert current_call_policy().effort == "none"
-        monkeypatch.setenv("LLM_EFFORT_OVERVIEW_OUTLINE", "low")
         assert current_call_policy().effort == "low"
+        monkeypatch.setenv("LLM_EFFORT_OVERVIEW_OUTLINE", "none")
+        assert current_call_policy().effort == "none"
         monkeypatch.setenv("LLM_EFFORT_OVERVIEW_OUTLINE", "high")
         with pytest.raises(ProviderAdmissionError):
             current_call_policy()
@@ -152,14 +258,20 @@ def test_role_effort_env_is_read_per_physical_request(monkeypatch: pytest.Monkey
         ("ranking", "low", "low"),
         ("safety", "low", "low"),
         ("claims", "low", "low"),
-        ("literature_queries", "low", "none"),
-        ("relevance", "low", "none"),
-        ("goal_text", "low", "none"),
+        ("literature_queries", "none", "none"),
+        ("relevance", "low", "low"),
+        ("proximity", "low", "low"),
+        ("research_extract", "low", "low"),
+        ("goal_text", "none", "none"),
         ("supervisor", "medium", "medium"),
-        ("overview_outline", "none", "none"),
+        ("overview", "medium", "medium"),
+        ("meta_review", "medium", "low"),
+        ("overview_review", "low", "low"),
+        ("overview_outline", "low", "low"),
+        ("overview_directions", "low", "low"),
     ],
 )
-async def test_azure_runs_worker_roles_on_luna_at_lowest_effort_or_none(
+async def test_azure_runs_luna_at_low_or_none_and_planning_and_report_at_medium(
     monkeypatch: pytest.MonkeyPatch, role: CallRole, effort: str, azure_effort: str
 ) -> None:
     captured: list[dict[str, Any]] = []
@@ -185,3 +297,26 @@ def test_azure_prices_include_cache_write_and_long_context_without_guessing_depl
     assert luna.price.long_context.cache_write_usd_per_million == 0.25
     assert model_profile("azure/gpt-5-nano-2025-08-07").price is None
     assert model_profile("azure/unmapped-deployment").price is None
+
+
+def test_luna_charges_short_rates_up_to_its_published_boundary() -> None:
+    from co_scientist.platform.llm.admission.spend import _model_rates, price_cost
+
+    rates = {**_model_rates(LUNA), "fx": "1"}
+    assert price_cost(rates, 272_000, 0, cached=0, written=0) == 27_200
+    assert price_cost(rates, 272_001, 0, cached=0, written=0) == 54_401
+    legacy = {name: value for name, value in rates.items() if not name.startswith("short_")}
+    assert price_cost(legacy, 272_000, 0, cached=0, written=0) == 54_400
+
+
+def test_express_estimate_uses_luna_short_rates_for_bounded_inputs() -> None:
+    from decimal import Decimal
+
+    from co_scientist.platform.llm.admission.spend import SpendConfig
+    from co_scientist.platform.llm.routing import express_estimate
+
+    azure = SpendConfig(10_000_000, Decimal("1"), float("inf"))
+    config = {"max_llm_calls": 1200}
+    assert express_estimate("g", config, azure) == 57 * 101_025 * 6 // 10 + 360_000
+    long_goal = "g" * 200_000
+    assert express_estimate(long_goal, config, azure) == -(-57 * 301_024 * 12 // 10) + 540_000

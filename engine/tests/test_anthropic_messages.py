@@ -10,6 +10,7 @@ import pytest
 
 from co_scientist.core.exceptions import ProviderAdmissionError
 from co_scientist.platform.db import connect
+from co_scientist.platform.db.anthropic_credit import AnthropicPromptTooLongError
 from co_scientist.platform.llm.admission.anthropic import credit_config
 from co_scientist.platform.llm.admission.service import scoped_client
 from co_scientist.platform.llm.request.anthropic import (
@@ -79,7 +80,7 @@ async def test_own_token_count_checks_cap_before_any_message_is_sent(
         if accepted:
             await complete_request(_request(), HAIKU, byok=False, timeout_seconds=5)
         else:
-            with pytest.raises(AnthropicSlotUnavailableError):
+            with pytest.raises(AnthropicPromptTooLongError):
                 await complete_request(_request(), HAIKU, byok=False, timeout_seconds=5)
     assert all(request.url.host == "api.anthropic.com" for request in sent)
     assert sum(request.url.path.endswith("/messages") for request in sent) == int(accepted)
@@ -211,16 +212,25 @@ async def test_caller_billing_error_does_not_disable_operator_credit(
         assert conn.execute("SELECT COUNT(*) FROM anthropic_credit").fetchone()[0] == 0
 
 
-@pytest.mark.parametrize("role,cap", [("claims", 8192), ("generation", 16384), ("overview", 32768)])
-def test_output_caps_keep_adaptive_low_even_when_thinking_is_disabled(
-    role: CallRole, cap: int
+@pytest.mark.parametrize(
+    ("role", "cap", "thinking", "mode"),
+    [
+        ("claims", 8192, False, "disabled"),
+        ("relevance", 8192, True, "adaptive"),
+        ("goal_text", 8192, True, "disabled"),
+        ("generation", 16384, True, "adaptive"),
+        ("overview", 32768, True, "adaptive"),
+    ],
+)
+def test_haiku_reasons_where_luna_does_and_always_at_low_effort(
+    role: CallRole, cap: int, thinking: bool, mode: str
 ) -> None:
     from co_scientist.platform.llm.request.thinking import apply_provider_constraints
 
     request = {**_request(), "max_tokens": 128000, "temperature": 0.4, "top_p": 0.5}
-    with scoped_call_policy(role, "medium", enable_thinking=False):
+    with scoped_call_policy(role, enable_thinking=thinking):
         apply_provider_constraints(request, HAIKU)
     assert request["max_tokens"] == cap
-    assert request["thinking"] == {"type": "adaptive"}
+    assert request["thinking"] == {"type": mode}
     assert request["output_config"] == {"effort": "low"}
     assert "temperature" not in request and "top_p" not in request

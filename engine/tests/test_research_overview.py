@@ -281,7 +281,7 @@ async def test_every_drafted_direction_buys_its_own_bounded_call() -> None:
     ]
     sent = ask.await_args_list[0].kwargs
     assert sent["spec"].max_tokens == RESEARCH_OVERVIEW_DIRECTION_MAX_TOKENS
-    assert sent["options"].enable_thinking is False
+    assert "options" not in sent
     assert all(
         f"Direction {index}" in sent["prompt"]
         for index in range(RESEARCH_OVERVIEW_TARGET_DIRECTIONS)

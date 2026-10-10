@@ -22,7 +22,10 @@ the planned model's free `count_tokens` endpoint and the existing byte bound.
 The metadata request has a separate provider rate limit; include it in the live
 check's request allocation. No writer covers a count or Messages request.
 
-Reject a counted prompt above 100,000 tokens before sending Messages. Counts are
+Reject a counted prompt above 100,000 tokens before sending Messages; Haiku
+bills it at five times the input rate. Operator routing then sends that one call
+to Luna, whose long tier starts at 272,000 tokens, and the next call returns to
+Haiku. Without an admitted Azure slot the call has no provider. Counts are
 provider estimates with small possible differences from billed usage. Reserve
 at the higher price tier, with the full cache-write rate and output allowance;
 settle the actual tier and cache buckets using saved prices. Inclusive prompt
@@ -32,7 +35,8 @@ Settlement also records whether the provider refused the call, on both the
 credit and Azure ledgers, for every physical call role; `NULL` means not measured.
 The private spend view counts them per role. No prompt, header or error body is kept.
 
-Every call uses adaptive thinking and effort low. Sampling parameters are omitted.
+Every call uses effort low. A call reasons (adaptive thinking) where its role
+reasons, and sends disabled thinking otherwise. Sampling parameters are omitted.
 Per-call-role output ceilings are 8,192, 16,384 or 32,768 tokens. Short app text
 calls (titles, restatements, announcements) ask for the thinking floor, so their
 ceiling is the role's; an answer-sized budget ends in `output_cap`. An attempt cannot

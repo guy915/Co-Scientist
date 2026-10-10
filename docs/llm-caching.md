@@ -18,8 +18,10 @@ The gateway sends five-minute breakpoints at both boundaries on Haiku 5.5. Tool 
 and chat also use top-level automatic caching. A request may have at most four cache
 breakpoints, including the automatic one. No delimiter from user text is interpreted.
 
-Haiku 5.5 always sends adaptive thinking and low effort, including recovery attempts.
-There is no disabled path or effort table for this slot. Effort changes only after
+Haiku 5.5 always sends low effort. It sends adaptive thinking, or disabled
+thinking for the roles that do not reason. An engine recovery attempt keeps the
+call's thinking mode, so the cached prefix stays valid; a chat retry after an
+answer-less reasoning stream turns thinking off. Effort changes only after
 paired quality results by call type. Temperature is omitted; top_p and
 top_k are removed from both request arguments and extra body. Thinking shares max_tokens
 with answer text. Read only text content blocks, including when thinking appears first.
@@ -41,8 +43,8 @@ cache-hit behavior still needs a live check.
 Azure writes are an additional input charge. The durable EUR ledger already reserves
 and records them. Missing priced write usage keeps the full reservation. The single total
 cap, request-time expiry and kill switches still apply. General usage now records writes
-and uses each model's published read/write rates. The ledger retains conservative Luna long-context rates until its
-short/long boundary is confirmed. USD usage estimates do not replace that credit guard.
+and uses each model's published read/write rates. The ledger prices Luna at its short rates up to the published
+272,000-token boundary and at its long rates above it. USD usage estimates do not replace that credit guard.
 
 Private spans export numeric input, read and write counts plus a stable numeric call-type
 ID and refusal flag. Cache keys and prompt text are excluded. Usage aggregates include
