@@ -407,7 +407,7 @@ class TestFreeAdmission:
         assert body["provider"]["max_price"] == _ZERO_CAP
         assert "models" not in body
         assert body["reasoning"] == (
-            {"enabled": True, "effort": "high"}
+            {"enabled": True, "effort": "max"}
             if thinking
             else {"enabled": True, "max_tokens": MINIMAL_REASONING_MAX_TOKENS}
         )

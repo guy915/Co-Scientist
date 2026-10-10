@@ -7,7 +7,6 @@ from co_scientist.core.constants import (
     THINKING_FLOOR_MAX_TOKENS as THINKING_FLOOR_MAX_TOKENS,
 )
 
-CONVERSATIONAL_REASONING_EFFORT = "medium"
 DEFAULT_MODEL = "openrouter/inclusionai/ling-3.1-flash"
 THINKING_FLOOR_TIMEOUT_SECONDS = float(THINKING_FLOOR_MAX_TOKENS) / 75.0
 

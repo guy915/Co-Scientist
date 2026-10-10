@@ -15,7 +15,10 @@ from co_scientist.core.exceptions import (
     ProviderAdmissionError,
 )
 from co_scientist.platform.db import Connection, connect
-from co_scientist.platform.db.anthropic_credit import AnthropicCreditUnavailableError
+from co_scientist.platform.db.anthropic_credit import (
+    AnthropicCreditUnavailableError,
+    AnthropicPromptTooLongError,
+)
 from co_scientist.platform.db.llm_routes import (
     OpenRouterCapacityError,
     Slot,
@@ -33,6 +36,7 @@ from co_scientist.platform.llm.admission.service import (
     scoped_free_route,
 )
 from co_scientist.platform.llm.admission.spend import (
+    SHORT_CONTEXT_TOKENS,
     SpendConfig,
     paid_dispatch_config,
     require_enabled,
@@ -154,10 +158,11 @@ def express_estimate(goal: str, config: dict[str, Any], azure: SpendConfig) -> i
     price = model_profile(_LUNA).price
     if price is None:
         raise ProviderAdmissionError(UNAVAILABLE)
-    price = price.long_context or price
     # The offline meter measured four supervisor calls. Allow twelve, plus 45 worker calls,
-    # 100k input bytes each, all at Luna's long-context rates.
+    # 100k input bytes each, at the Luna tier those bytes fall in.
     input_bound = 100_000 + len(goal.encode("utf-8")) + 1024
+    if input_bound > SHORT_CONTEXT_TOKENS:
+        price = price.long_context or price
     inputs = (
         57
         * input_bound
@@ -346,8 +351,11 @@ async def routed_completion(
                 previous, reason, sticky = slot, "refusal" if declined else "output_cap", False
                 continue
             return response
-        except (AnthropicCreditUnavailableError, OpenRouterCapacityError):
-            previous, reason = slot, "credit_or_free_cap"
+        except (AnthropicCreditUnavailableError, OpenRouterCapacityError) as error:
+            # Luna's long-context tier starts far higher; later calls return to Haiku.
+            long = isinstance(error, AnthropicPromptTooLongError)
+            previous, reason = slot, "long_context" if long else "credit_or_free_cap"
+            sticky = sticky and not long
         except FreeModelEligibilityError:
             if slot != "openrouter":
                 raise

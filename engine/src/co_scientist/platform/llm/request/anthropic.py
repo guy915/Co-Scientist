@@ -9,7 +9,10 @@ import openai
 from litellm.llms.anthropic.chat.transformation import AnthropicConfig
 from litellm.types.llms.openai import AllMessageValues
 
-from co_scientist.platform.db.anthropic_credit import AnthropicCreditUnavailableError
+from co_scientist.platform.db.anthropic_credit import (
+    AnthropicCreditUnavailableError,
+    AnthropicPromptTooLongError,
+)
 from co_scientist.platform.db.spend import UNAVAILABLE
 from co_scientist.platform.llm.admission.anthropic import require_credit_available
 from co_scientist.platform.llm.request.cache import HAIKU
@@ -32,8 +35,6 @@ _SHORT_ROLES = frozenset(
         "goal_text",
         "announcement",
         "credential_probe",
-        "overview_outline",
-        "overview_directions",
     )
 )
 _LONG_ROLES = frozenset(("overview", "meta_review", "literature_analysis"))
@@ -45,6 +46,11 @@ OUTPUT_LIMITS = {
 
 class AnthropicSlotUnavailableError(AnthropicCreditUnavailableError):
     pass
+
+
+def haiku_thinking() -> dict[str, str]:
+    # Haiku 5.5 has no fixed thinking budget: adaptive at low effort, or off.
+    return {"type": "adaptive" if current_call_policy().enable_thinking else "disabled"}
 
 
 def count_request(request: dict[str, Any]) -> dict[str, Any]:
@@ -64,7 +70,7 @@ def count_request(request: dict[str, Any]) -> dict[str, Any]:
         model="claude-haiku-5-5",
         drop_params=True,
     )
-    params["thinking"] = {"type": "adaptive"}
+    params["thinking"] = haiku_thinking()
     body = config.transform_request(
         model="claude-haiku-5-5",
         messages=cast(list[AllMessageValues], messages),
@@ -117,8 +123,11 @@ async def require_prompt_fits(request: dict[str, Any], path: str) -> int:
         )
         response.raise_for_status()
         count = response.json().get("input_tokens")
-    if type(count) is not int or not 0 <= count <= INPUT_LIMIT:
+    if type(count) is not int or count < 0:
         raise AnthropicSlotUnavailableError(UNAVAILABLE)
+    # Haiku bills a longer prompt at five times the input rate.
+    if count > INPUT_LIMIT:
+        raise AnthropicPromptTooLongError(UNAVAILABLE)
     return count
 
 

@@ -23,7 +23,8 @@ keeps the reservation. No writer spans network work. Convert USD prices with
 The guard uses integer micro-EUR and snapshots FX/rates for each reservation.
 Paid transactions sync the reservation before dispatch. Native calls recheck
 kill switches, expiry and the process spend hold after any thread wait.
-Until Luna's price boundary is known, charge at the higher long-context rate.
+Luna's long rates apply above 272,000 input tokens; reserve and settle at the
+tier the input bound or reported prompt falls in.
 Reserve input bytes plus the framing allowance, the full output allowance and
 up to four cache-write prefixes. Missing Luna cache-write usage keeps the full
 money reservation. Reported reasoning stays within output tokens. Settlement
@@ -47,8 +48,8 @@ The admin view has no email or alert.
 
 The reference deployment is Sweden Central Global Standard
 `coscientist-supervisor-luna` (gpt-6-luna, 2026-09-22); every Azure role uses
-it. Remaining provider credits and their expiry come from the portal. Exact
-expiry time and Luna's short/long price boundary are unknown. It needs at
+it. Remaining provider credits and their expiry come from the portal. The exact
+expiry time is unknown. It needs at
 least 300K TPM ([Azure setup](azure-setup.md)). TPM is a rate limit, not a
 cost; spend is bounded by the recorded allowance. No quota is
 changed by this implementation. There is no live model quality receipt.

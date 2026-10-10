@@ -12,9 +12,6 @@ from co_scientist.platform.llm import llm_request, offline_guard
 from co_scientist.platform.llm.llm_scope import budgeted
 from co_scientist.platform.llm.request.response import extract_token_usage
 from co_scientist.platform.llm.request.thinking import (
-    deepseek_thinking_kwargs,
-    thinking_off_kwargs,
-    thinking_safe_max_tokens,
     thinking_safe_timeout,
 )
 from co_scientist.platform.llm.stream import ReasoningRetry, check_text_response
@@ -130,9 +127,6 @@ async def _request_completion(
     """
     offline_guard.require_remote_chat(request.purpose)
     model, api_key = byok_scope.byok_model_and_key(settings.effective_chat_model)
-    thinking_kwargs = (
-        deepseek_thinking_kwargs(model) if thinking_enabled else thinking_off_kwargs(model)
-    )
     return await asyncio.wait_for(
         llm_request.acompletion(
             call_role="goal_text",
@@ -142,8 +136,8 @@ async def _request_completion(
                 {"role": "user", "content": goal},
             ],
             temperature=request.temperature,
-            max_tokens=thinking_safe_max_tokens(model, request.max_tokens),
-            **thinking_kwargs,
+            max_tokens=request.max_tokens,
+            enable_thinking=thinking_enabled,
             api_key=api_key,
         ),
         timeout=thinking_safe_timeout(model, request.timeout_seconds),

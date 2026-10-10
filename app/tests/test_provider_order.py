@@ -294,7 +294,7 @@ async def test_real_sdk_order_and_refusal_falls_back_for_only_that_call(
     with connect(path) as conn:
         assert conn.execute("SELECT slot FROM llm_routes").fetchone()[0] == "anthropic"
         assert conn.execute("SELECT SUM(charged_microusd) FROM anthropic_credit").fetchone()[0] == 4
-        assert conn.execute("SELECT SUM(charged_microeur) FROM llm_spend").fetchone()[0] == 6
+        assert conn.execute("SELECT SUM(charged_microeur) FROM llm_spend").fetchone()[0] == 4
         assert [
             row[0]
             for row in conn.execute("SELECT refused FROM anthropic_credit ORDER BY created_at")
@@ -372,6 +372,66 @@ async def test_exhausted_slot_skips_immediately_and_stays_disabled_on_next_call(
     with connect(path) as conn:
         assert conn.execute("SELECT COUNT(*) FROM anthropic_credit_state").fetchone()[0] == 1
         assert conn.execute("SELECT settled FROM anthropic_credit").fetchone()[0] == 0
+
+
+async def test_long_prompt_moves_one_call_to_luna_and_the_next_returns_to_haiku(
+    path: str, providers: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from co_scientist.core.config import DEFAULT_MODEL
+    from co_scientist.platform.llm.admission.service import scoped_client
+    from co_scientist.platform.llm.request.backend import LitellmBackend, using_backend
+    from co_scientist.platform.llm.request.transport import complete_request
+    from co_scientist.platform.llm.routing import scoped_operator_routing
+
+    monkeypatch.delenv("OPENROUTER_API_KEY")
+    with connect(path) as conn:
+        conn.execute("UPDATE llm_routes SET slot='anthropic'")
+    counts = iter((100_001, 20))
+    sent: list[str] = []
+
+    async def send(
+        client: httpx.AsyncClient, request: httpx.Request, **kwargs: Any
+    ) -> httpx.Response:
+        sent.append(request.url.path)
+        if request.url.path.endswith("count_tokens"):
+            return httpx.Response(200, request=request, json={"input_tokens": next(counts)})
+        return httpx.Response(200, request=request, json=_message(refused=False))
+
+    def send_sync(client: httpx.Client, request: httpx.Request, **kwargs: Any) -> httpx.Response:
+        sent.append(request.url.path)
+        return httpx.Response(200, request=request, json=_azure_response())
+
+    monkeypatch.setattr(httpx.AsyncClient, "send", send)
+    monkeypatch.setattr(httpx.Client, "send", send_sync)
+    request = {
+        "model": DEFAULT_MODEL,
+        "messages": [{"role": "user", "content": "goal"}],
+        "max_tokens": 1000,
+    }
+    with (
+        using_backend(LitellmBackend()),
+        scoped_client("owner", db_path=path),
+        scoped_operator_routing(providers),
+    ):
+        long = await complete_request(request, DEFAULT_MODEL, byok=False, timeout_seconds=5)
+        short = await complete_request(request, DEFAULT_MODEL, byok=False, timeout_seconds=5)
+    assert long.choices[0].message.content == "Azure answer"
+    assert short.choices[0].message.content == "Subscriber answer"
+    assert sent == [
+        "/v1/messages/count_tokens",
+        "/openai/v1/responses",
+        "/v1/messages/count_tokens",
+        "/v1/messages",
+    ]
+    with connect(path) as conn:
+        assert conn.execute("SELECT slot FROM llm_routes").fetchone()[0] == "anthropic"
+        reasons = [
+            json.loads(row[0])["reason"]
+            for row in conn.execute(
+                "SELECT payload_json FROM run_events WHERE type='model_provider' ORDER BY seq"
+            )
+        ]
+        assert reasons[-1] == "long_context"
 
 
 @pytest.mark.parametrize("cause", ["prompt_cap", "output_cap", "credit_cap"])
@@ -528,7 +588,7 @@ def test_native_credit_preflight_works_without_openrouter_and_notice_keeps_usabl
         process_mode.install(previous)
 
 
-async def test_goal_text_on_claude_leaves_room_for_adaptive_thinking(
+async def test_goal_text_on_claude_sends_no_thinking_and_only_its_answer_budget(
     path: str, providers: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from co_scientist.core.config import settings
@@ -554,7 +614,7 @@ async def test_goal_text_on_claude_leaves_room_for_adaptive_thinking(
         response = _message(refused=False)
         # max_tokens bounds thinking and answer together; a budget under one
         # thought is spent before any text.
-        if body["max_tokens"] < 1024:
+        if body["thinking"] != {"type": "disabled"} and body["max_tokens"] < 1024:
             response["stop_reason"] = "max_tokens"
             response["content"] = [{"type": "thinking", "thinking": "", "signature": "s"}]
             response["usage"]["output_tokens"] = body["max_tokens"]
@@ -577,8 +637,8 @@ async def test_goal_text_on_claude_leaves_room_for_adaptive_thinking(
         title = await generate_run_title(goal)
         restatement = await generate_goal_restatement(goal)
     assert (title, restatement) == ("Ferroptosis Targets", "A restatement.")
-    assert [body["max_tokens"] for body in bodies] == [8192, 8192]
-    assert all(body["thinking"] == {"type": "adaptive"} for body in bodies)
+    assert [body["max_tokens"] for body in bodies] == [24, 200]
+    assert all(body["thinking"] == {"type": "disabled"} for body in bodies)
     assert all(body["output_config"] == {"effort": "low"} for body in bodies)
     with connect(path) as conn:
         rows = conn.execute(

@@ -111,7 +111,7 @@ async def test_real_sdk_preserves_boundary_markers_thinking_and_cache_write_cost
     assert len(sent) == 1
     body = sent[0]
     assert "thinking" in body, body
-    assert body["thinking"] == {"type": "adaptive"}
+    assert body["thinking"] == {"type": "disabled"}
     assert body["output_config"] == {"effort": "low"}
     assert not {"temperature", "top_p", "top_k"} & body.keys()
     assert _extract_completion_content(response, HAIKU) == "answer"
