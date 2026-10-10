@@ -168,9 +168,9 @@ COSCIENTIST_RUN_RETENTION_DAYS=0
 
 The optional paid Azure fallback needs `LLM_AZURE_ENABLED=1`,
 `LLM_TOTAL_BUDGET_EUR`, `LLM_AZURE_EXPIRES_AT`, `AZURE_OPENAI_ENDPOINT`,
-`AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_SUPERVISOR_DEPLOYMENT`,
-`AZURE_OPENAI_WORKER_DEPLOYMENT` and an operator-recorded allowance in the
-store; without all of them Azure stays off ([Azure setup](azure-setup.md)).
+`AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT` and an operator-recorded
+allowance in the store; without all of them Azure stays off
+([Azure setup](azure-setup.md)).
 
 The zero run-retention setting disables scheduled deletion of completed runs;
 document retention remains separate (`COSCIENTIST_DOCUMENT_RETENTION_DAYS`).

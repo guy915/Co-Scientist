@@ -45,14 +45,12 @@ backend stays an explicit test double. Spend metrics are token-protected, and
 new allowance version and a matching total, not code.
 The admin view has no email or alert.
 
-The reference deployments are Sweden Central Global Standard:
-`coscientist-supervisor-luna` (gpt-6-luna, 2026-09-22) and
-`coscientist-worker-nano` (gpt-5-nano, 2025-08-07). Remaining provider credits
-and their expiry come from the portal. Exact expiry time and Luna's
-short/long price boundary are unknown. Nano cached input is $0.01/M.
-Since 9 Oct 2026, `coscientist-supervisor-luna` has 100K TPM and
-`coscientist-worker-nano` has 300K TPM. TPM is a rate limit, not a cost;
-spend is bounded by the recorded allowance. No quota is
+The reference deployment is Sweden Central Global Standard
+`coscientist-supervisor-luna` (gpt-6-luna, 2026-09-22); every Azure role uses
+it. Remaining provider credits and their expiry come from the portal. Exact
+expiry time and Luna's short/long price boundary are unknown. It needs at
+least 300K TPM ([Azure setup](azure-setup.md)). TPM is a rate limit, not a
+cost; spend is bounded by the recorded allowance. No quota is
 changed by this implementation. There is no live model quality receipt.
 
 ## Validation status

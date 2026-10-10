@@ -15,7 +15,7 @@ import pytest
 from co_scientist.core.exceptions import LLMContentFilteredError
 from co_scientist.core.prompt_cache import CacheablePrompt
 from co_scientist.platform.llm.profile import estimate_cost_usd
-from co_scientist.platform.llm.request.azure import LUNA, NANO, response_request
+from co_scientist.platform.llm.request.azure import LUNA, response_request
 from co_scientist.platform.llm.request.cache import (
     HAIKU,
     _azure_cache_key,
@@ -214,7 +214,7 @@ def test_schema_suffix_keeps_trusted_boundaries_and_other_models_are_unchanged()
     assert isinstance(rendered, CacheablePrompt)
     assert rendered[: rendered.item_end] == original[: original.item_end]
     request = {"messages": [{"role": "user", "content": rendered}]}
-    apply_prompt_cache(request, NANO)
+    apply_prompt_cache(request, LUNA)
     assert request["messages"][0]["content"] is rendered
 
 
@@ -243,7 +243,7 @@ def test_partition_keys_stay_under_fifteen_calls_in_a_rolling_minute(
     assert _azure_cache_key("run", "ranking") == "run:ranking"
 
 
-@pytest.mark.parametrize("model", [LUNA, NANO])
+@pytest.mark.parametrize("model", [LUNA])
 def test_azure_responses_carries_run_and_call_type_key(model: str) -> None:
     request = {
         "model": model,

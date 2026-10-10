@@ -19,7 +19,7 @@ from co_scientist.platform.llm.admission.service import (
     scoped_client,
     settle_physical,
 )
-from co_scientist.platform.llm.request.azure import LUNA, NANO
+from co_scientist.platform.llm.request.azure import LUNA
 from co_scientist.platform.llm.request.backend import using_backend
 from co_scientist.platform.llm.request.transport import complete_request
 
@@ -39,12 +39,16 @@ def budget(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> str:
     return path
 
 
-def _request(model: str = NANO) -> dict[str, Any]:
+def _request(model: str = LUNA) -> dict[str, Any]:
     return {"model": model, "messages": [{"role": "user", "content": "answer"}], "max_tokens": 1000}
 
 
 def _usage(**changes: Any) -> Any:
     return SimpleNamespace(usage={"prompt_tokens": 90, "completion_tokens": 30, **changes})
+
+
+def _settleable(**changes: Any) -> Any:
+    return _usage(prompt_tokens_details={"cache_write_tokens": 0}, **changes)
 
 
 def _spent(path: str) -> int:
@@ -57,7 +61,7 @@ def _spent(path: str) -> int:
 def test_concurrent_calls_never_reserve_past_total(
     budget: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "0.001")
+    monkeypatch.setenv("LLM_TOTAL_BUDGET_EUR", "0.004")
 
     def reserve(_: int) -> bool:
         try:
@@ -70,7 +74,7 @@ def test_concurrent_calls_never_reserve_past_total(
     with concurrent.futures.ThreadPoolExecutor(max_workers=12) as pool:
         results = list(pool.map(reserve, range(40)))
     assert sum(results) == 2
-    assert 0 < _spent(budget) <= 1000
+    assert 0 < _spent(budget) <= 4000
     with connect(budget) as conn:
         assert (
             conn.execute("SELECT calls FROM provider_admissions WHERE scope='global'").fetchone()[0]
@@ -81,10 +85,12 @@ def test_concurrent_calls_never_reserve_past_total(
 def test_token_and_money_settlement_is_one_idempotent_refund(budget: str) -> None:
     receipt = reserve_physical(_request())
     reserved = _spent(budget)
-    settle_physical(receipt, _usage(prompt_tokens_details={"cached_tokens": 40}))
-    assert _spent(budget) == 14 and _spent(budget) < reserved
+    settle_physical(
+        receipt, _usage(prompt_tokens_details={"cached_tokens": 40, "cache_write_tokens": 0})
+    )
+    assert _spent(budget) == 30 and _spent(budget) < reserved
     settle_physical(receipt, _usage(prompt_tokens=1, completion_tokens=1))
-    assert _spent(budget) == 14
+    assert _spent(budget) == 30
     with connect(budget) as conn:
         assert all(row[0] == 120 for row in conn.execute("SELECT tokens FROM provider_admissions"))
 
@@ -105,8 +111,8 @@ def test_settlement_keeps_original_fx_when_configuration_changes(
 ) -> None:
     receipt = reserve_physical(_request())
     monkeypatch.setenv("LLM_USD_TO_EUR", "100")
-    settle_physical(receipt, _usage())
-    assert _spent(budget) == 15
+    settle_physical(receipt, _settleable())
+    assert _spent(budget) == 36
 
 
 def test_failed_settlement_rolls_back_token_refund_and_stops_new_paid_calls(
@@ -120,7 +126,7 @@ def test_failed_settlement_rolls_back_token_refund_and_stops_new_paid_calls(
 
     monkeypatch.setattr("co_scientist.platform.db.admission.settle_spend", fail)
     with pytest.raises(ProviderAdmissionError):
-        settle_physical(receipt, _usage())
+        settle_physical(receipt, _settleable())
     assert _spent(budget) == before
     with connect(budget) as conn:
         assert (
@@ -166,7 +172,7 @@ def test_usage_outside_reserved_bound_keeps_charge_and_sets_durable_hold(budget:
     receipt = reserve_physical(_request())
     before = _spent(budget)
     with pytest.raises(ProviderAdmissionError):
-        settle_physical(receipt, _usage(prompt_tokens=1_000_000))
+        settle_physical(receipt, _settleable(prompt_tokens=1_000_000))
     assert _spent(budget) == before
     with connect(budget) as conn:
         assert conn.execute("SELECT COUNT(*) FROM llm_spend_holds").fetchone()[0] == 1
@@ -195,7 +201,7 @@ def test_money_total_does_not_loosen_free_run_limit(
         claim_free_run(conn, "owner", "one-extra")
 
 
-@pytest.mark.parametrize("model_name", [NANO, "azure/responses/gpt-5-nano-2025-08-07"])
+@pytest.mark.parametrize("model_name", [LUNA, "azure/responses/gpt-6-luna-2026-09-22"])
 async def test_kill_switch_rechecked_before_dispatch_keeps_reservation_without_http(
     budget: str,
     monkeypatch: pytest.MonkeyPatch,
@@ -250,7 +256,7 @@ async def test_unset_spent_expired_and_disabled_policy_calls_no_provider(
         using_backend(Fake()),
         pytest.raises(ProviderAdmissionError, match="No model is available"),
     ):
-        await complete_request(_request(), NANO, byok=False, timeout_seconds=5)
+        await complete_request(_request(), LUNA, byok=False, timeout_seconds=5)
     assert calls == [] and _spent(budget) == 0
 
 
@@ -291,7 +297,7 @@ def test_paid_reservation_is_synced_and_survives_abrupt_process_exit(
 import os
 from co_scientist.platform.llm.admission.service import reserve_physical
 reserve_physical({
-    "model": "azure/gpt-5-nano-2025-08-07",
+    "model": "azure/gpt-6-luna-2026-09-22",
     "messages": [{"role": "user", "content": "answer"}],
     "max_tokens": 1000,
 })
@@ -331,7 +337,7 @@ def test_privacy_erasure_and_admission_retention_keep_lifetime_spend(budget: str
     with scoped_client("owner", db_path=budget):
         known = reserve_physical(_request())
         unknown = reserve_physical(_request())
-    settle_physical(known, _usage())
+    settle_physical(known, _settleable())
     charged = _spent(budget)
     delete_data("owner")
     with connect(budget) as conn:
@@ -345,8 +351,8 @@ def test_privacy_erasure_and_admission_retention_keep_lifetime_spend(budget: str
             conn.execute("SELECT settled FROM llm_spend WHERE id=?", (unknown.id,)).fetchone()[0]
             == 0
         )
-    settle_physical(unknown, _usage())
-    assert _spent(budget) == 30
+    settle_physical(unknown, _settleable())
+    assert _spent(budget) == 72
 
 
 def test_cache_write_charge_is_durable_and_can_exhaust_remaining_total(

@@ -133,15 +133,6 @@ ROUTES: Final[dict[str, Facts]] = {
         "supported_efforts": ("none", "low", "medium"),
         "price": ModelPrice(0.10, 0.50, 0.01, 0.125, ModelPrice(0.20, 0.75, 0.02, 0.25)),
     },
-    "azure/gpt-5-nano-2025-08-07": {
-        "reasons": True,
-        "responses_api": True,
-        "json_schema": True,
-        "fixed_sampling": True,
-        "version": "2025-08-07",
-        "supported_efforts": ("low", "medium"),
-        "price": ModelPrice(0.05, 0.40, 0.01),
-    },
     # Retained explicit route: both Nex variants reason and need bounded-minimal
     # reasoning.
     "openrouter/nex-agi/nex-n2.5-pro:free": _gateway(_FREE),

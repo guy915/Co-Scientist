@@ -128,7 +128,7 @@ def test_owned_spend_export_and_erasure_preserve_shared_funding_and_late_settlem
             app=False,
             db_path=isolated_db,
             spend=SpendReservation(
-                "azure/gpt-5-nano-2025-08-07",
+                "azure/gpt-6-luna-2026-09-22",
                 "worker",
                 100,
                 1000,

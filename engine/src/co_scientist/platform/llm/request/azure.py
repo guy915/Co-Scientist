@@ -22,7 +22,6 @@ from co_scientist.platform.llm.profile import model_profile
 from co_scientist.platform.llm.roles import current_call_policy
 
 LUNA = "azure/gpt-6-luna-2026-09-22"
-NANO = "azure/gpt-5-nano-2025-08-07"
 
 
 @dataclass
@@ -182,7 +181,7 @@ def response_request(request: dict[str, Any], deployments: dict[str, str]) -> di
     if model not in deployments:
         raise ProviderAdmissionError("Unknown Azure model price or deployment")
     policy = current_call_policy()
-    effort = request.get("reasoning_effort", policy.effort)
+    effort = request.get("reasoning_effort", policy.azure_effort)
     if effort not in (model_profile(model).supported_efforts or ()):
         raise ProviderAdmissionError("Unsupported Azure reasoning effort")
     output = request.get("max_completion_tokens", request.get("max_tokens"))
@@ -209,7 +208,9 @@ def response_request(request: dict[str, Any], deployments: dict[str, str]) -> di
     if fmt:
         body["text"] = {
             "format": (
-                {"type": "json_schema", **fmt["json_schema"]}
+                # Chat Completions treats an omitted strict as false, but Azure
+                # Responses enforces the strict subset and rejects optional keys.
+                {"type": "json_schema", "strict": False, **fmt["json_schema"]}
                 if fmt.get("type") == "json_schema"
                 else {"type": fmt["type"]}
             )
@@ -244,7 +245,7 @@ def input_bound(body: dict[str, Any]) -> int:
 
 def request_input_bound(request: dict[str, Any]) -> int:
     # Deployment names do not reach the prompt, so the logical name stands in.
-    return input_bound(response_request(request, {LUNA: LUNA, NANO: NANO}))
+    return input_bound(response_request(request, {LUNA: LUNA}))
 
 
 def normalize_response(response: Any, model: str) -> Completion:
@@ -392,21 +393,16 @@ class AzureResponsesBackend:
         if endpoint is None or os.getenv("AZURE_OPENAI_API_VERSION", "v1") != "v1":
             raise ProviderAdmissionError("Azure needs a resource HTTPS endpoint and API version v1")
         key = os.getenv("AZURE_OPENAI_API_KEY", "")
-        deployments = {
-            LUNA: os.getenv("AZURE_OPENAI_SUPERVISOR_DEPLOYMENT", ""),
-            NANO: os.getenv("AZURE_OPENAI_WORKER_DEPLOYMENT", ""),
-        }
-        if not key or not all(deployments.values()) or len(set(deployments.values())) != 2:
-            raise ProviderAdmissionError(
-                "Both distinct Azure deployments and a credential are required"
-            )
+        deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
+        if not key or not deployment:
+            raise ProviderAdmissionError("An Azure deployment and a credential are required")
         client = openai.OpenAI(
             api_key=key,
             base_url=endpoint + "/openai/v1/",
             max_retries=0,
             http_client=httpx.Client(follow_redirects=False),
         )
-        return cls(client, deployments, operator_funded=True)
+        return cls(client, {LUNA: deployment}, operator_funded=True)
 
     def close(self) -> None:
         self._client.close()

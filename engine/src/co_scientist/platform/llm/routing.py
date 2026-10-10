@@ -43,7 +43,6 @@ from co_scientist.platform.llm.roles import current_call_policy
 
 logger = logging.getLogger(__name__)
 _LUNA = "azure/gpt-6-luna-2026-09-22"
-_NANO = "azure/gpt-5-nano-2025-08-07"
 
 
 @dataclass(frozen=True)
@@ -136,8 +135,7 @@ def available_slots(path: str) -> RoutingAdmission:
             for name in (
                 "AZURE_OPENAI_API_KEY",
                 "AZURE_OPENAI_ENDPOINT",
-                "AZURE_OPENAI_SUPERVISOR_DEPLOYMENT",
-                "AZURE_OPENAI_WORKER_DEPLOYMENT",
+                "AZURE_OPENAI_DEPLOYMENT",
             )
         ):
             try:
@@ -153,29 +151,27 @@ def express_estimate(goal: str, config: dict[str, Any], azure: SpendConfig) -> i
     # This is a forecast, not measured usage. Physical reserves remain hard.
     from decimal import ROUND_CEILING, Decimal
 
-    supervisor = model_profile(_LUNA).price
-    worker = model_profile(_NANO).price
-    if supervisor is None or worker is None:
+    price = model_profile(_LUNA).price
+    if price is None:
         raise ProviderAdmissionError(UNAVAILABLE)
-    supervisor = supervisor.long_context or supervisor
+    price = price.long_context or price
     # The offline meter measured four supervisor calls. Allow twelve, plus 45 worker calls,
-    # 100k input bytes each and all requested output at the higher tier.
+    # 100k input bytes each, all at Luna's long-context rates.
     input_bound = 100_000 + len(goal.encode("utf-8")) + 1024
-    inputs = sum(
-        count
+    inputs = (
+        57
         * input_bound
         * (
             Decimal(str(price.prompt_usd_per_million))
             + 4 * Decimal(str(price.cache_write_usd_per_million))
         )
-        for count, price in ((12, supervisor), (45, worker))
     )
     configured_calls = config.get("max_llm_calls", 1200)
     if type(configured_calls) is not int or configured_calls <= 0:
         raise ProviderAdmissionError(UNAVAILABLE)
     factor = max(Decimal(1), Decimal(configured_calls) / 1200)
     estimate = (
-        (inputs + 720_000 * Decimal(str(supervisor.completion_usd_per_million))) * factor * azure.fx
+        (inputs + 720_000 * Decimal(str(price.completion_usd_per_million))) * factor * azure.fx
     )
     return int(estimate.to_integral_value(rounding=ROUND_CEILING))
 
@@ -265,7 +261,7 @@ def _model(slot: Slot, original: str) -> str:
         )
     if slot == "anthropic":
         return HAIKU
-    return _LUNA if current_call_policy().tier == "supervisor" else _NANO
+    return _LUNA
 
 
 def _choices(scope: RoutingScope, path: str) -> tuple[Slot, ...]:
