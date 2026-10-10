@@ -212,16 +212,24 @@ async def test_caller_billing_error_does_not_disable_operator_credit(
         assert conn.execute("SELECT COUNT(*) FROM anthropic_credit").fetchone()[0] == 0
 
 
-@pytest.mark.parametrize("role,cap", [("claims", 8192), ("generation", 16384), ("overview", 32768)])
-def test_output_caps_keep_adaptive_low_even_when_thinking_is_disabled(
-    role: CallRole, cap: int
+@pytest.mark.parametrize(
+    ("role", "cap", "thinking", "mode"),
+    [
+        ("claims", 8192, False, "disabled"),
+        ("relevance", 8192, True, "disabled"),
+        ("generation", 16384, True, "adaptive"),
+        ("overview", 32768, True, "adaptive"),
+    ],
+)
+def test_haiku_reasons_where_luna_does_and_always_at_low_effort(
+    role: CallRole, cap: int, thinking: bool, mode: str
 ) -> None:
     from co_scientist.platform.llm.request.thinking import apply_provider_constraints
 
     request = {**_request(), "max_tokens": 128000, "temperature": 0.4, "top_p": 0.5}
-    with scoped_call_policy(role, "medium", enable_thinking=False):
+    with scoped_call_policy(role, enable_thinking=thinking):
         apply_provider_constraints(request, HAIKU)
     assert request["max_tokens"] == cap
-    assert request["thinking"] == {"type": "adaptive"}
+    assert request["thinking"] == {"type": mode}
     assert request["output_config"] == {"effort": "low"}
     assert "temperature" not in request and "top_p" not in request

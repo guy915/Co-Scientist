@@ -10,8 +10,8 @@ from co_scientist.core.constants import (
     THINKING_FLOOR_MAX_TOKENS,
 )
 from co_scientist.core.env_vars import parse_list_env
-from co_scientist.platform.llm.profile import ModelProfile, Thinking, model_profile
-from co_scientist.platform.llm.request.anthropic import output_limit
+from co_scientist.platform.llm.profile import ModelProfile, Thinking, is_free_route, model_profile
+from co_scientist.platform.llm.request.anthropic import haiku_thinking, output_limit
 from co_scientist.platform.llm.roles import current_call_policy
 
 logger = logging.getLogger(__name__)
@@ -141,19 +141,23 @@ def deepseek_thinking_extra_body(model_name: str, *, enabled: bool = True) -> di
 
 
 # Free routes bill per request, not per token, so they reason at the most the
-# gateway offers; it maps "max" down to each model's top tier. Conversation
-# keeps a middle tier so users are not left waiting.
+# gateway offers; it maps "max" down to each model's top tier. User-facing text
+# keeps a middle tier so users are not left waiting, and paid routes keep the
+# role's own effort because they bill per token.
 _GATEWAY_MAX_EFFORT: Final[str] = "max"
-_CONVERSATIONAL_ROLES: Final = frozenset(("chat", "interview"))
+_CONVERSATIONAL_ROLES: Final = frozenset(("chat", "interview", "goal_text", "announcement"))
 
 
-def _gateway_effort() -> str:
-    if current_call_policy().role in _CONVERSATIONAL_ROLES:
+def _gateway_effort(lowered: str) -> str:
+    policy = current_call_policy()
+    if policy.role in _CONVERSATIONAL_ROLES:
         # Imported here: live evaluations configure the environment before config loads.
         from co_scientist.core.config import CONVERSATIONAL_REASONING_EFFORT
 
         return CONVERSATIONAL_REASONING_EFFORT
-    return _GATEWAY_MAX_EFFORT
+    if is_free_route(lowered):
+        return _GATEWAY_MAX_EFFORT
+    return "low" if policy.effort == "none" else policy.effort
 
 
 def _gateway_body(lowered: str, profile: ModelProfile, enabled: bool) -> dict[str, Any]:
@@ -168,7 +172,7 @@ def _gateway_body(lowered: str, profile: ModelProfile, enabled: bool) -> dict[st
         return body
     reasoning: dict[str, Any] = {"enabled": enabled}
     if enabled:
-        reasoning["effort"] = profile.pinned_effort or _gateway_effort()
+        reasoning["effort"] = profile.pinned_effort or _gateway_effort(lowered)
     body["reasoning"] = reasoning
     return body
 
@@ -247,7 +251,7 @@ def apply_provider_constraints(completion_args: dict[str, Any], model_name: str)
         completion_args["allowed_openai_params"] = list(
             dict.fromkeys([*completion_args.get("allowed_openai_params", []), "thinking"])
         )
-        completion_args["thinking"] = {"type": "adaptive"}
+        completion_args["thinking"] = haiku_thinking()
         completion_args["output_config"] = {"effort": "low"}
         completion_args["max_tokens"] = min(
             completion_args.pop("max_completion_tokens", completion_args.get("max_tokens", 0)),

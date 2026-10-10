@@ -5,11 +5,15 @@ Options override the spec. The role scope covers every retry, tool turn and
 closing turn. App calls pass `call_role` and optional `call_effort`.
 
 Free OpenRouter routes bill per request, not per token, so every role asks for
-effort max, which the gateway maps to each model's top tier. Chat and interview
-use medium so users are not kept waiting; output budgets are sized for these
-efforts. Azure runs every role on Luna at low, except the table's none roles
-and the no-reasoning roles below, which use none. Every direct Haiku call uses
-adaptive thinking and low, regardless of the table or overrides. BYOK keeps its selected models and credentials.
+effort max, which the gateway maps to each model's top tier. Chat, interview,
+session titles and restatements (`goal_text`) and the run announcement use
+medium so users are not left waiting; output budgets are sized for these
+efforts. Paid OpenRouter routes bill per token, so they keep the table's effort
+(low for none). Azure runs every role on Luna at low, except supervisor and
+overview at medium, and the table's none roles and the no-reasoning roles below
+at none. Every direct Haiku call uses effort low, with adaptive thinking where
+Luna reasons and disabled thinking where it does not, regardless of the table or
+overrides. BYOK keeps its selected models and credentials.
 
 | Role | Tier | Default effort |
 |---|---|---|
@@ -37,8 +41,8 @@ short rates when its input bound or reported prompt is at or below the boundary.
 
 Production operator routing selects the native Responses client for Azure.
 `LLM_AZURE_ENABLED`, a positive hard total and an unexpired cutoff are required.
-The subscriber API slot always uses adaptive thinking and low effort, regardless
-of this table. Its output ceilings include hidden thinking.
+The subscriber API slot always uses low effort, and reasons only where Luna
+does, regardless of this table. Its output ceilings include hidden thinking.
 
 Operator short roles have a 180-second deadline; overview, meta review and
 literature analysis have 600 seconds. Unknown transport outcomes retain spend

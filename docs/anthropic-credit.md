@@ -35,7 +35,8 @@ Settlement also records whether the provider refused the call, on both the
 credit and Azure ledgers, for every physical call role; `NULL` means not measured.
 The private spend view counts them per role. No prompt, header or error body is kept.
 
-Every call uses adaptive thinking and effort low. Sampling parameters are omitted.
+Every call uses effort low. A call reasons (adaptive thinking) where it reasons on
+Luna, and sends disabled thinking otherwise. Sampling parameters are omitted.
 Per-call-role output ceilings are 8,192, 16,384 or 32,768 tokens. Short app text
 calls (titles, restatements, announcements) ask for the thinking floor, so their
 ceiling is the role's; an answer-sized budget ends in `output_cap`. An attempt cannot

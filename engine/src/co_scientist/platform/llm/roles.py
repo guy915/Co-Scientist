@@ -96,8 +96,8 @@ ROLE_DEFAULTS: dict[str, tuple[ModelTier, ReasoningEffort]] = {
 }
 
 
-# Azure serves every role from Luna at its lowest reasoning effort; these roles
-# and the table's "none" roles do not reason.
+# Azure serves every role from Luna at its lowest reasoning effort, except the
+# planning and report roles; these roles and the table's "none" roles do not reason.
 AZURE_NO_REASONING_ROLES: frozenset[str] = frozenset(
     {
         "evidence_queries",
@@ -115,8 +115,13 @@ AZURE_NO_REASONING_ROLES: frozenset[str] = frozenset(
 )
 
 
+AZURE_MEDIUM_ROLES: frozenset[str] = frozenset({"supervisor", "overview"})
+
+
 def _azure_default(role: str, default: ReasoningEffort) -> ReasoningEffort:
-    return "none" if default == "none" or role in AZURE_NO_REASONING_ROLES else "low"
+    if default == "none" or role in AZURE_NO_REASONING_ROLES:
+        return "none"
+    return "medium" if role in AZURE_MEDIUM_ROLES else "low"
 
 
 @dataclass(frozen=True)

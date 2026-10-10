@@ -50,6 +50,13 @@ class AnthropicSlotUnavailableError(AnthropicCreditUnavailableError):
     pass
 
 
+def haiku_thinking() -> dict[str, str]:
+    # Haiku follows Luna's choice of which calls reason, but always at low effort.
+    policy = current_call_policy()
+    off = not policy.enable_thinking or policy.azure_effort == "none"
+    return {"type": "disabled" if off else "adaptive"}
+
+
 def count_request(request: dict[str, Any]) -> dict[str, Any]:
     if request.get("model") != HAIKU or request.get("api_base", API_BASE) != API_BASE:
         raise AnthropicSlotUnavailableError(UNAVAILABLE)
@@ -67,7 +74,7 @@ def count_request(request: dict[str, Any]) -> dict[str, Any]:
         model="claude-haiku-5-5",
         drop_params=True,
     )
-    params["thinking"] = {"type": "adaptive"}
+    params["thinking"] = haiku_thinking()
     body = config.transform_request(
         model="claude-haiku-5-5",
         messages=cast(list[AllMessageValues], messages),

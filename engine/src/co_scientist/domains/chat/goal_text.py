@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.core import byok_scope
-from co_scientist.core.config import settings
+from co_scientist.core.config import CONVERSATIONAL_REASONING_EFFORT, settings
 from co_scientist.domains.chat.titles import title_case
 from co_scientist.platform.llm import llm_request, offline_guard
 from co_scientist.platform.llm.llm_scope import budgeted
@@ -131,7 +131,9 @@ async def _request_completion(
     offline_guard.require_remote_chat(request.purpose)
     model, api_key = byok_scope.byok_model_and_key(settings.effective_chat_model)
     thinking_kwargs = (
-        deepseek_thinking_kwargs(model) if thinking_enabled else thinking_off_kwargs(model)
+        deepseek_thinking_kwargs(model, effort=CONVERSATIONAL_REASONING_EFFORT)
+        if thinking_enabled
+        else thinking_off_kwargs(model)
     )
     return await asyncio.wait_for(
         llm_request.acompletion(

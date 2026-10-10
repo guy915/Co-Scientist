@@ -235,7 +235,7 @@ async def test_standard_plans_can_revisit_rungs_within_their_attempt_budget(
     assert len(run.calls) == 5
     assert run.slept == []
     assert run.reasoning == [
-        {"enabled": True, "effort": "max"},
+        {"enabled": True, "effort": "medium"},
         {"enabled": False},
         {"enabled": True, "effort": "low"},
         {"enabled": False},
@@ -359,7 +359,7 @@ async def test_a_tool_turn_mandatory_reasoning_rung_sends_no_minimal_effort(
     assert run.error is None
     assert len(run.calls) == 2
     # Tool recovery raises budget while retaining the same reasoning request.
-    assert run.reasoning == [{"enabled": True, "effort": "max"}] * 2
+    assert run.reasoning == [{"enabled": True, "effort": "medium"}] * 2
     assert run.max_tokens[1] > run.max_tokens[0]
 
 
@@ -378,7 +378,7 @@ async def test_alternating_reasoning_failures_exhaust_the_tool_attempt_budget(
         assert isinstance(run.error, LLMThinkingOnlyError)
     assert run.result is None, "the success sentinel must remain unreachable"
     assert len(run.calls) == 3
-    enabled = {"enabled": True, "effort": "max"}
+    enabled = {"enabled": True, "effort": "medium"}
     disabled = {"enabled": False}
     assert run.reasoning == (
         [enabled, enabled, disabled] if mandatory_first else [enabled, disabled, enabled]

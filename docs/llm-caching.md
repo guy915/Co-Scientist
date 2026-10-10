@@ -18,8 +18,9 @@ The gateway sends five-minute breakpoints at both boundaries on Haiku 5.5. Tool 
 and chat also use top-level automatic caching. A request may have at most four cache
 breakpoints, including the automatic one. No delimiter from user text is interpreted.
 
-Haiku 5.5 always sends adaptive thinking and low effort, including recovery attempts.
-There is no disabled path or effort table for this slot. Effort changes only after
+Haiku 5.5 always sends low effort. It sends adaptive thinking, or disabled
+thinking for the calls that do not reason on Luna. A recovery attempt keeps the
+call's thinking mode, so the cached prefix stays valid. Effort changes only after
 paired quality results by call type. Temperature is omitted; top_p and
 top_k are removed from both request arguments and extra body. Thinking shares max_tokens
 with answer text. Read only text content blocks, including when thinking appears first.

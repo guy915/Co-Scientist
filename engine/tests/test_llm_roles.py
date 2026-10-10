@@ -39,6 +39,8 @@ LUNA = "azure/gpt-6-luna-2026-09-22"
         ("overview_outline", "max"),
         ("chat", "medium"),
         ("interview", "medium"),
+        ("goal_text", "medium"),
+        ("announcement", "medium"),
     ],
 )
 async def test_free_route_reasons_at_maximum_effort_except_conversation(
@@ -64,6 +66,18 @@ async def test_free_route_reasons_at_maximum_effort_except_conversation(
         "request": 0.0,
     }
     assert "reasoning_effort" not in captured[0]
+
+
+@pytest.mark.parametrize(
+    ("role", "effort"),
+    [("generation", "medium"), ("ranking", "low"), ("overview_outline", "low"), ("chat", "medium")],
+)
+def test_paid_gateway_route_keeps_the_role_effort(role: CallRole, effort: str) -> None:
+    from co_scientist.platform.llm.request.thinking import deepseek_thinking_extra_body
+
+    with scoped_call_policy(role):
+        body = deepseek_thinking_extra_body("openrouter/z-ai/glm-5.3-flash")
+    assert body["reasoning"] == {"enabled": True, "effort": effort}
 
 
 @pytest.fixture(autouse=True)
@@ -158,13 +172,14 @@ def test_role_effort_env_is_read_per_physical_request(monkeypatch: pytest.Monkey
         ("literature_queries", "low", "none"),
         ("relevance", "low", "none"),
         ("goal_text", "low", "none"),
-        ("supervisor", "medium", "low"),
+        ("supervisor", "medium", "medium"),
+        ("overview", "medium", "medium"),
         ("meta_review", "medium", "low"),
         ("overview_review", "low", "low"),
         ("overview_outline", "none", "none"),
     ],
 )
-async def test_azure_runs_every_role_on_luna_at_lowest_effort_or_none(
+async def test_azure_runs_luna_at_low_or_none_and_planning_and_report_at_medium(
     monkeypatch: pytest.MonkeyPatch, role: CallRole, effort: str, azure_effort: str
 ) -> None:
     captured: list[dict[str, Any]] = []

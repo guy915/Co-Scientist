@@ -7,7 +7,11 @@ from time import perf_counter
 from typing import Any
 
 from co_scientist.core import byok_scope
-from co_scientist.core.config import THINKING_FLOOR_TIMEOUT_SECONDS, settings
+from co_scientist.core.config import (
+    CONVERSATIONAL_REASONING_EFFORT,
+    THINKING_FLOOR_TIMEOUT_SECONDS,
+    settings,
+)
 from co_scientist.core.prompt_cache import CacheablePrompt
 from co_scientist.core.sse import sse_frame
 from co_scientist.domains.chat.repository import messages as store
@@ -98,7 +102,9 @@ async def _stream_model_fragments(
     offline_guard.require_remote_chat("the session announcement")
     model, api_key = byok_scope.byok_model_and_key(settings.effective_chat_model)
     thinking_kwargs = (
-        deepseek_thinking_kwargs(model) if thinking_enabled else thinking_off_kwargs(model)
+        deepseek_thinking_kwargs(model, effort=CONVERSATIONAL_REASONING_EFFORT)
+        if thinking_enabled
+        else thinking_off_kwargs(model)
     )
     response = await llm_request.acompletion(
         call_role="announcement",

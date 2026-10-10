@@ -588,7 +588,7 @@ def test_native_credit_preflight_works_without_openrouter_and_notice_keeps_usabl
         process_mode.install(previous)
 
 
-async def test_goal_text_on_claude_leaves_room_for_adaptive_thinking(
+async def test_goal_text_on_claude_sends_no_thinking_and_keeps_its_output_room(
     path: str, providers: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from co_scientist.core.config import settings
@@ -638,7 +638,7 @@ async def test_goal_text_on_claude_leaves_room_for_adaptive_thinking(
         restatement = await generate_goal_restatement(goal)
     assert (title, restatement) == ("Ferroptosis Targets", "A restatement.")
     assert [body["max_tokens"] for body in bodies] == [8192, 8192]
-    assert all(body["thinking"] == {"type": "adaptive"} for body in bodies)
+    assert all(body["thinking"] == {"type": "disabled"} for body in bodies)
     assert all(body["output_config"] == {"effort": "low"} for body in bodies)
     with connect(path) as conn:
         rows = conn.execute(
